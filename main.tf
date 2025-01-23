@@ -139,6 +139,30 @@ resource "helm_release" "karpenter" {
   ]
 }
 
+# KARPENTER CONF FILES
+
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+  }
+}
+
+resource "kubernetes_manifest" "karpenter_nodePool" {
+  manifest = yamldecode(file("${path.module}/karpenter_conf_files/nodePool.yaml"))
+}
+
+
+resource "kubernetes_manifest" "karpenter_ec2nodeclass" {
+  manifest = yamldecode(file("${path.module}/karpenter_conf_files/EC2NodeClass.yaml"))
+}
+
+
+# VPC INFORMATION
 
 data "terraform_remote_state" "vpc" {
   backend = "s3"
@@ -148,3 +172,4 @@ data "terraform_remote_state" "vpc" {
     region = local.region
   }
 }
+

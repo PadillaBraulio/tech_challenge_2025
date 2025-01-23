@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inflateamd64
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: inflateamd64
+  template:
+    metadata:
+      labels:
+        app: inflateamd64
+    spec:
+      terminationGracePeriodSeconds: 0
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: "kubernetes.io/arch"
+                    operator: In
+                    values:
+                      - "amd64"
+      containers:
+        - name: inflateamd64
+          image: public.ecr.aws/eks-distro/kubernetes/pause:3.7
+          resources:
+            requests:
+              cpu: 1
