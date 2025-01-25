@@ -1,20 +1,16 @@
+# Pin specific Terraform and provider versions to ensure compatibility and control updates
 terraform {
-  required_version = ">= 1.3.2"
+  required_version = "= 1.10.4"
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.83"
+      version = "= 5.84.0"
     }
     helm = {
       source  = "hashicorp/helm"
-      version = ">= 2.7"
+      version = "= 2.17.0"
     }
-  }
-    backend "s3" {
-      bucket = "challengeterraformstate"
-      key    = "challenge/state_file"
-      region = "us-east-1"
   }
 }
 
