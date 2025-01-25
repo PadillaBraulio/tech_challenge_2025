@@ -7,10 +7,15 @@ Configuration in this directory creates an AWS EKS cluster with [Karpenter](http
 
 ## Prerrequisites
 1. **Required Tools:**
-   - Terraform (>= 1.3.2)
+   - `Terraform (= 1.3.2)`
+   - AWS account
+        - For testing you will have to change the backend configuration (or delete it)
+            - S3 bucket name 
+            - Dynamodb 
    - `awscli` (to interact with EKS and update `kubeconfig`)
-   -  AWS credentials should be configured locally (e.g., with `aws configure`).
+        -  AWS credentials should be configured locally (e.g., with `aws configure`).
    - `kubectl` (to manage Kubernetes resources)
+   
 
 2. **AWS Permissions:**
    - You need an AWS user or role with sufficient permissions to create and manage the following resources:
@@ -24,10 +29,19 @@ Configuration in this directory creates an AWS EKS cluster with [Karpenter](http
 
 
 2. **VPC Requirements:**
-   - This configuration assumes an **existing VPC**, which is passed via the `terraform.tfvars` file. Ensure that:
-     - The VPC includes private subnets properly tagged for Karpenter discovery.
-     - The `terraform.tfvars` file contains the necessary VPC and subnet IDs.
-   - AWS credentials should be configured locally (e.g., with `aws configure`).
+   - This example assumes you have a vpc deployed in terraform and you have access to its state file.
+     You will have to change this code in the main.tf file in order to the process to work
+
+        ```
+            data "terraform_remote_state" "vpc" {
+            backend = "s3"
+            config = {
+                bucket = "challengeterraformstate"  
+                key    = "challenge/vpc_statefile"  
+                region = local.region
+            }
+            }
+        ```
 
 ## Usage
 
@@ -41,7 +55,7 @@ $ terraform plan
 $ terraform apply --auto-approve
 ```
 
-Once the cluster is up and running, you can check that Karpenter is functioning as intended with the following command:
+Once the cluster is up and running install karpenter running the following commands:
 
 ```bash
 # First, make sure you have updated your local kubeconfig
@@ -52,9 +66,16 @@ cd karpenter_conf_files
 kubectl apply -f karpenter.yaml
 cd ..
 
+```
+
+### ARCHITECTURE DEPLOYING EXAMPLE
+
+```
 # If you want to Karpenter to decide which architecture to use do
+
 cd karpenter_deploy_examples
 kubectl apply -f inflate.yaml
+
 
 # If you want to Karpenter to use amd64 arch do:
 cd karpenter_deploy_examples
@@ -63,6 +84,8 @@ kubectl apply -f inflateamd64.yaml
 # You can watch Karpenter's controller logs with
 kubectl logs -f -n kube-system -l app.kubernetes.io/name=karpenter -c controller
 ```
+
+### Validation:
 
 Validate if the Amazon EKS Addons Pods are running in the Managed Node Group and the `inflate` application Pods are running on Karpenter provisioned Nodes.
 
@@ -76,6 +99,7 @@ ip-10-0-13-51.us-east-1.compute.internal    Ready    <none>   29s   v1.31.1-eks-
 ip-10-0-41-242.us-east-1.compute.internal   Ready    <none>   35m   v1.31.1-eks-1b3e656
 ip-10-0-8-151.us-east-1.compute.internal    Ready    <none>   35m   v1.31.1-eks-1b3e656
 ```
+
 
 ### GPU SLICING RESEARCH AND TESTING
 
