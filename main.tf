@@ -1,28 +1,6 @@
-provider "aws" {
-  region = local.region
-}
-
-
-provider "helm" {
-  kubernetes {
-    host                   = module.eks.cluster_endpoint
-    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-
-    exec {
-      api_version = "client.authentication.k8s.io/v1beta1"
-      command     = "aws"
-      # This requires the awscli to be installed locally where Terraform is executed
-      args = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
-    }
-  }
-}
-
-data "aws_ecrpublic_authorization_token" "token" {
-}
-
 locals {
   name   = "ex-karpenter"
-  region = "us-east-1"
+  region = var.region
 
   tags = {
     Example    = local.name
@@ -30,6 +8,10 @@ locals {
     GithubOrg  = "terraform-aws-modules"
   }
 }
+
+data "aws_ecrpublic_authorization_token" "token" {
+}
+
 
 ################################################################################
 # EKS Module
@@ -40,7 +22,7 @@ module "eks" {
   version = "20.33.0"
 
   cluster_name    = local.name
-  cluster_version = "1.31"
+  cluster_version = var.cluster_version
 
   # Gives Terraform identity admin access to cluster which will
   # allow deploying resources (Karpenter) into the cluster
@@ -57,19 +39,17 @@ module "eks" {
 
   vpc_id                   = data.terraform_remote_state.vpc.outputs.vpc_id
   subnet_ids               = data.terraform_remote_state.vpc.outputs.private_subnets
-  #control_plane_subnet_ids = local.private_subnets
 
   eks_managed_node_groups = {
     karpenter = {
       ami_type       = "BOTTLEROCKET_x86_64"
-      instance_types = ["m5.large"]
+      instance_types = [var.instance_type]
 
-      min_size     = 2
-      max_size     = 2
-      desired_size = 2
+      min_size     = var.node_group_min_size
+      max_size     = var.node_group_max_size
+      desired_size = var.node_group_desired_size
 
       labels = {
-        # Used to ensure Karpenter runs on nodes that it does not manage
         "karpenter.sh/controller" = "true"
       }
     }
@@ -139,26 +119,24 @@ resource "helm_release" "karpenter" {
   ]
 }
 
-# KARPENTER CONF FILES
+# GPU TIME SLICING
 
-provider "kubernetes" {
-  host                   = module.eks.cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+resource "helm_release" "nvidia_device_plugin" {
+  name       = "nvdp"
+  chart      = "nvidia-device-plugin"
+  repository = "https://nvidia.github.io/k8s-device-plugin"
+  namespace  = "nvidia-device-plugin"
+  create_namespace = true
 
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+  version = "0.17.0"
+
+  set {
+    name  = "config.name"
+    value = "nvidia-device-plugin"
   }
-}
-
-resource "kubernetes_manifest" "karpenter_nodePool" {
-  manifest = yamldecode(file("${path.module}/karpenter_conf_files/nodePool.yaml"))
-}
 
 
-resource "kubernetes_manifest" "karpenter_ec2nodeclass" {
-  manifest = yamldecode(file("${path.module}/karpenter_conf_files/EC2NodeClass.yaml"))
+  depends_on = [ module.eks ]
 }
 
 
