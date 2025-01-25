@@ -1,0 +1,84 @@
+---
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  amiSelectorTerms:
+    - alias: bottlerocket@latest
+  role: ex-karpenter
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: ex-karpenter
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: ex-karpenter
+  tags:
+    karpenter.sh/discovery: ex-karpenter
+
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: default
+spec:
+  template:
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      requirements:
+        - key: "karpenter.sh/capacity-type"
+          operator: In
+          values: ["on-demand"]
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["arm64", "amd64"]
+        - key: "karpenter.k8s.aws/instance-category"
+          operator: In
+          values: ["m"]
+        - key: "karpenter.k8s.aws/instance-cpu"
+          operator: In
+          values: ["4","8"]
+        - key: "karpenter.k8s.aws/instance-generation"
+          operator: Gt
+          values: ["4"]
+  limits:
+    cpu: 50
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 30s
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu-nodepool
+spec:
+  template:
+    metadata:
+      labels:
+        nvidia.com/gpu.present: 'true' # Needed to match what is set in the helm chart https://github.com/NVIDIA/k8s-device-plugin/blob/main/deployments/helm/nvidia-device-plugin/values.yaml#L84
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      requirements:
+        - key: "karpenter.sh/capacity-type"
+          operator: In
+          values: ["on-demand"]
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["amd64"] 
+        - key: "node.kubernetes.io/instance-type"
+          operator: In
+          values: [ "g5.xlarge" ] # NVIDIA GPU INSTANCES
+        - key: "topology.kubernetes.io/zone"
+          operator: In
+          values: ["us-east-1a"] 
+  limits:
+    cpu: 64  
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 30s
